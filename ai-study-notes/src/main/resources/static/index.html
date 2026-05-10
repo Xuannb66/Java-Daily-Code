@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 学习笔记助手</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <!-- 头部 -->
+    <header>
+        <h1>📚 AI 学习笔记助手</h1>
+        <button class="btn btn-primary" onclick="openCreateModal()">+ 新建笔记</button>
+    </header>
+
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+        <input type="text" id="keyword" placeholder="搜索笔记标题或内容..." onkeydown="if(event.key==='Enter') loadNotes()">
+        <button onclick="loadNotes()">搜索</button>
+    </div>
+
+    <!-- 分类筛选 -->
+    <div class="category-bar" id="category-bar">
+        <span class="cat active" onclick="filterByCategory('', this)">全部</span>
+        <!-- 分类由 JS 动态加载 -->
+    </div>
+
+    <!-- 笔记列表 -->
+    <div class="note-list" id="note-list">
+        <div class="loading">加载中...</div>
+    </div>
+</div>
+
+<!-- 新建/编辑弹窗 -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+        <h2 id="modal-title">新建笔记</h2>
+        <form id="note-form" onsubmit="saveNote(event)">
+            <input type="hidden" id="note-id">
+
+            <div class="form-group">
+                <label for="note-title">标题 *</label>
+                <input type="text" id="note-title" placeholder="输入笔记标题" required maxlength="200">
+                <div class="error-message" id="title-error"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="note-category">分类</label>
+                <select id="note-category">
+                    <option value="">-- 选择分类 --</option>
+                    <!-- 分类由 JS 动态加载 -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="note-content">内容 *</label>
+                <textarea id="note-content" rows="10" placeholder="在这里写笔记内容..." required></textarea>
+                <div class="error-message" id="content-error"></div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">💾 保存</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '/api/notes';
+
+    let currentCategory = '';
+    let categories = [];
+
+    // ===== 初始化 =====
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCategories();
+        loadNotes();
+    });
+
+    // ===== 加载分类 =====
+    async function loadCategories() {
+        try {
+            const res = await fetch(`${API_BASE}/categories`);
+            categories = await res.json();
+            renderCategoryBar();
+            renderCategorySelect();
+        } catch (e) {
+            console.error('加载分类失败', e);
+        }
+    }
+
+    function renderCategoryBar() {
+        const bar = document.getElementById('category-bar');
+        // 保留"全部"按钮，动态添加分类
+        bar.innerHTML = '<span class="cat active" onclick="filterByCategory(\'\', this)">全部</span>';
+        categories.forEach(cat => {
+            const span = document.createElement('span');
+            span.className = 'cat';
+            span.textContent = cat;
+            span.onclick = () => filterByCategory(cat, span);
+            bar.appendChild(span);
+        });
+    }
+
+    function renderCategorySelect() {
+        const select = document.getElementById('note-category');
+        select.innerHTML = '<option value="">-- 选择分类 --</option>';
+        categories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            select.appendChild(option);
+        });
+    }
+
+    // ===== 加载笔记列表 =====
+    async function loadNotes() {
+        const listEl = document.getElementById('note-list');
+        listEl.innerHTML = '<div class="loading">加载中...</div>';
+
+        const keyword = document.getElementById('keyword').value.trim();
+        let url = API_BASE;
+        const params = [];
+        if (keyword) params.push(`keyword=${encodeURIComponent(keyword)}`);
+        if (currentCategory) params.push(`category=${encodeURIComponent(currentCategory)}`);
+        if (params.length) url += '?' + params.join('&');
+
+        try {
+            const res = await fetch(url);
+            const notes = await res.json();
+            renderNotes(notes);
+        } catch (e) {
+            listEl.innerHTML = '<div class="empty">加载失败，请刷新重试</div>';
+            console.error(e);
+        }
+    }
+
+    function renderNotes(notes) {
+        const listEl = document.getElementById('note-list');
+        if (!notes || notes.length === 0) {
+            listEl.innerHTML = '<div class="empty"><p>还没有笔记，点击「新建笔记」开始吧！</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = '';
+        notes.forEach(note => {
+            const div = document.createElement('div');
+            div.className = 'note-card';
+            const createdAt = note.createdAt ? new Date(note.createdAt).toLocaleString('zh-CN') : '';
+            const preview = (note.content || '').substring(0, 80);
+            div.innerHTML = `
+                <h3>${escapeHtml(note.title)}</h3>
+                <div class="note-meta">
+                    ${note.category ? `<span class="tag">${escapeHtml(note.category)}</span>` : ''}
+                    <span>${createdAt}</span>
+                </div>
+                <p class="note-preview">${escapeHtml(preview)}</p>
+                <div class="note-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="openEditModal(${note.id})">编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteNote(${note.id})">删除</button>
+                </div>
+            `;
+            listEl.appendChild(div);
+        });
+    }
+
+    // ===== 分类筛选 =====
+    function filterByCategory(category, el) {
+        currentCategory = category;
+        // 更新 active 样式
+        document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        loadNotes();
+    }
+
+    // ===== 新建笔记弹窗 =====
+    function openCreateModal() {
+        document.getElementById('modal-title').textContent = '新建笔记';
+        document.getElementById('note-form').reset();
+        document.getElementById('note-id').value = '';
+        document.getElementById('title-error').textContent = '';
+        document.getElementById('content-error').textContent = '';
+        document.getElementById('modal-overlay').classList.add('active');
+    }
+
+    // ===== 编辑笔记弹窗 =====
+    async function openEditModal(id) {
+        try {
+            const res = await fetch(`${API_BASE}/${id}`);
+            if (!res.ok) throw new Error('笔记不存在');
+            const note = await res.json();
+
+            document.getElementById('modal-title').textContent = '编辑笔记';
+            document.getElementById('note-id').value = note.id;
+            document.getElementById('note-title').value = note.title || '';
+            document.getElementById('note-category').value = note.category || '';
+            document.getElementById('note-content').value = note.content || '';
+            document.getElementById('title-error').textContent = '';
+            document.getElementById('content-error').textContent = '';
+            document.getElementById('modal-overlay').classList.add('active');
+        } catch (e) {
+            alert('加载笔记失败：' + e.message);
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('modal-overlay').classList.remove('active');
+    }
+
+    // ===== 保存笔记（新建或更新）=====
+    async function saveNote(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('note-id').value;
+        const title = document.getElementById('note-title').value.trim();
+        const category = document.getElementById('note-category').value;
+        const content = document.getElementById('note-content').value.trim();
+
+        // 前端简单校验
+        document.getElementById('title-error').textContent = '';
+        document.getElementById('content-error').textContent = '';
+        let hasError = false;
+        if (!title) {
+            document.getElementById('title-error').textContent = '标题不能为空';
+            hasError = true;
+        }
+        if (!content) {
+            document.getElementById('content-error').textContent = '内容不能为空';
+            hasError = true;
+        }
+        if (hasError) return;
+
+        const note = { title, category, content };
+        const isUpdate = id && id !== '';
+
+        try {
+            let res;
+            if (isUpdate) {
+                res = await fetch(`${API_BASE}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(note)
+                });
+            } else {
+                res = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(note)
+                });
+            }
+
+            if (res.ok) {
+                closeModal();
+                loadNotes();
+            } else {
+                const msg = await res.text();
+                alert('保存失败：' + msg);
+            }
+        } catch (e) {
+            alert('保存失败：' + e.message);
+        }
+    }
+
+    // ===== 删除笔记 =====
+    async function deleteNote(id) {
+        if (!confirm('确定删除这条笔记吗？')) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadNotes();
+            } else {
+                alert('删除失败');
+            }
+        } catch (e) {
+            alert('删除失败：' + e.message);
+        }
+    }
+
+    // ===== 工具函数 =====
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+com\example\notes\repository\NoteRepository.class
+com\example\notes\service\NoteService.class
+com\example\notes\NotesApplication.class
+com\example\notes\controller\NoteController.class
+com\example\notes\entity\Note.class

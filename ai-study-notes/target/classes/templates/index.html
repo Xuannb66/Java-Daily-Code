@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 学习笔记助手</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="container">
+    <!-- 头部 -->
+    <header>
+        <h1>📚 AI 学习笔记助手</h1>
+        <a th:href="@{/new}" class="btn btn-primary">+ 新建笔记</a>
+    </header>
+
+    <!-- 搜索栏 -->
+    <form th:action="@{/}" method="get" class="search-bar">
+        <input type="text" name="keyword" th:value="${keyword}" placeholder="搜索笔记标题或内容...">
+        <button type="submit">搜索</button>
+    </form>
+
+    <!-- 分类筛选 -->
+    <div class="category-bar">
+        <a th:href="@{/}" th:class="${currentCategory == null} ? 'cat active' : 'cat'">全部</a>
+        <a th:each="cat : ${categories}"
+           th:href="@{/(category=${cat})}"
+           th:text="${cat}"
+           th:class="${cat == currentCategory} ? 'cat active' : 'cat'">
+        </a>
+    </div>
+
+    <!-- 笔记列表 -->
+    <div class="note-list">
+        <div th:if="${#lists.isEmpty(notes)}" class="empty">
+            <p>还没有笔记，<a th:href="@{/new}">点击新建</a> 一条吧！</p>
+        </div>
+        <div th:each="note : ${notes}" class="note-card">
+            <h3>
+                <a th:href="@{/edit/{id}(id=${note.id})}" th:text="${note.title}">标题</a>
+            </h3>
+            <div class="note-meta">
+                <span class="tag" th:text="${note.category}">分类</span>
+                <span th:text="${#temporals.format(note.createdAt, 'yyyy-MM-dd HH:mm')}">时间</span>
+            </div>
+            <p class="note-preview" th:text="${#strings.abbreviate(note.content, 80)}">内容预览</p>
+            <div class="note-actions">
+                <a th:href="@{/edit/{id}(id=${note.id})}" class="btn btn-sm">编辑</a>
+                <a th:href="@{/delete/{id}(id=${note.id})}"
+                   class="btn btn-sm btn-danger"
+                   onclick="return confirm('确定删除这条笔记吗？')">删除</a>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

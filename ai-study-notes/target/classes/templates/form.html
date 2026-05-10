@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${note.id == null} ? '新建笔记' : '编辑笔记'">笔记表单</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1 th:text="${note.id == null} ? '📝 新建笔记' : '✏️ 编辑笔记'"></h1>
+        <a th:href="@{/}" class="btn">返回列表</a>
+    </header>
+
+    <form th:action="@{/save}" th:object="${note}" method="post" class="note-form">
+        <input type="hidden" th:field="*{id}">
+
+        <div class="form-group">
+            <label for="title">标题 *</label>
+            <input type="text" id="title" th:field="*{title}" placeholder="输入笔记标题" required>
+            <div th:if="${#fields.hasErrors('title')}" th:errors="*{title}" class="error-message"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="category">分类</label>
+            <select id="category" th:field="*{category}">
+                <option value="">-- 选择分类 --</option>
+                <option th:each="cat : ${categories}"
+                        th:value="${cat}"
+                        th:text="${cat}">
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="content">内容 *</label>
+            <textarea id="content" th:field="*{content}" rows="12"
+                      placeholder="在这里写笔记内容...（后期可接入AI自动生成）" required></textarea>
+            <div th:if="${#fields.hasErrors('content')}" th:errors="*{content}" class="error-message"></div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 保存</button>
+            <a th:href="@{/}" class="btn">取消</a>
+        </div>
+    </form>
+</div>
+</body>
+</html>
